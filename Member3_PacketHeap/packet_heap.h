@@ -2,7 +2,12 @@
 #define MEMBER3_PACKET_HEAP_H
 
 #include <vector>
+
+#if __has_include("../common.h")
 #include "../common.h"
+#elif __has_include("common.h")
+#include "common.h"
+#endif
 
 using namespace std;
 

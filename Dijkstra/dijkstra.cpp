@@ -103,11 +103,13 @@ RouteResult NetworkGraph::shortestPath(
     pq.push({0, source});
 
     while (!pq.empty()) {
-        long long currentCost = pq.top().first;
-        string u = pq.top().second;
+        State current = pq.top();
         pq.pop();
 
-        if (currentCost != dist[u]) {
+        long long currentDist = current.first;
+        string u = current.second;
+
+        if (currentDist > dist[u]) {
             continue;
         }
 
@@ -115,8 +117,14 @@ RouteResult NetworkGraph::shortestPath(
             break;
         }
 
-        for (const Edge& edge : adj.at(u)) {
-            long long newCost = currentCost + edge.cost;
+        auto it = adj.find(u);
+
+        if (it == adj.end()) {
+            continue;
+        }
+
+        for (const Edge& edge : it->second) {
+            long long newCost = currentDist + edge.cost;
 
             if (newCost < dist[edge.destination]) {
                 dist[edge.destination] = newCost;
@@ -155,12 +163,83 @@ RouteResult NetworkGraph::shortestPath(
     return result;
 }
 
+string NetworkGraph::getNextHop(const string& source,
+                                const string& destination) const {
+    if (source == destination) {
+        return "";
+    }
+
+    RouteResult result = shortestPath(source, destination);
+
+    if (!result.reachable || result.path.size() < 2) {
+        return "";
+    }
+
+    return result.path[1];
+}
+
+int NetworkGraph::getEdgeCost(const string& source,
+                              const string& destination) const {
+    auto it = adj.find(source);
+    if (it == adj.end()) {
+        return -1;
+    }
+
+    for (const Edge& edge : it->second) {
+        if (edge.destination == destination) {
+            return edge.cost;
+        }
+    }
+
+    return -1;
+}
+
+bool NetworkGraph::removeEdge(const string& u, const string& v) {
+    bool removed = false;
+
+    auto itU = adj.find(u);
+    if (itU != adj.end()) {
+        for (auto it = itU->second.begin(); it != itU->second.end(); ++it) {
+            if (it->destination == v) {
+                itU->second.erase(it);
+                removed = true;
+                break;
+            }
+        }
+    }
+
+    auto itV = adj.find(v);
+    if (itV != adj.end()) {
+        for (auto it = itV->second.begin(); it != itV->second.end(); ++it) {
+            if (it->destination == u) {
+                itV->second.erase(it);
+                removed = true;
+                break;
+            }
+        }
+    }
+
+    return removed;
+}
+
 bool NetworkGraph::hasRouter(const string& router) const {
     return adj.find(router) != adj.end();
 }
 
 int NetworkGraph::routerCount() const {
     return static_cast<int>(adj.size());
+}
+
+vector<string> NetworkGraph::getAllRouters() const {
+    vector<string> routers;
+    for (const auto& entry : adj) {
+        routers.push_back(entry.first);
+    }
+    sort(routers.begin(), routers.end(), [](const string& a, const string& b) {
+        if (a.size() != b.size()) return a.size() < b.size();
+        return a < b;
+    });
+    return routers;
 }
 
 void NetworkGraph::displayGraph() const {
