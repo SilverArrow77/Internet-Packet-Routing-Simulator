@@ -2,12 +2,18 @@
 #define MEMBER3_PACKET_HEAP_H
 
 #include <vector>
-
 #include "../common.h"
 
 using namespace std;
 
 class PacketHeap {
+private:
+    vector<Packet> heap;
+
+    bool higherPriority(const Packet& a, const Packet& b) const;
+    void siftUp(int index);
+    void siftDown(int index);
+
 public:
     void push(const Packet& packet);
     Packet pop();
