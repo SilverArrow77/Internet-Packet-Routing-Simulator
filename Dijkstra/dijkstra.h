@@ -27,6 +27,8 @@ public:
 
     bool hasRouter(const string& router) const;
 
+    bool removeLink(const string& routerA, const string& routerB);
+
     int routerCount() const;
 
     void displayGraph() const;

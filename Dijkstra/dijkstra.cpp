@@ -159,6 +159,32 @@ bool NetworkGraph::hasRouter(const string& router) const {
     return adj.find(router) != adj.end();
 }
 
+bool NetworkGraph::removeLink(
+    const string& routerA,
+    const string& routerB) {
+    auto first = adj.find(routerA);
+    auto second = adj.find(routerB);
+    if (first == adj.end() || second == adj.end()) {
+        return false;
+    }
+
+    auto removeDestination = [](vector<Edge>& edges, const string& target) {
+        for (vector<Edge>::iterator edge = edges.begin();
+             edge != edges.end();
+             ++edge) {
+            if (edge->destination == target) {
+                edges.erase(edge);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    bool removedForward = removeDestination(first->second, routerB);
+    bool removedBackward = removeDestination(second->second, routerA);
+    return removedForward && removedBackward;
+}
+
 int NetworkGraph::routerCount() const {
     return static_cast<int>(adj.size());
 }

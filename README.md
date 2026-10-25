@@ -369,6 +369,35 @@ g++ -std=c++11 main.cpp Dijkstra/dijkstra.cpp Member2_Trie/trie.cpp Member3_Pack
 ```
 
 Run `simulator` from the repository root so it can read `input.txt`,
-`routing_config.txt`, and `packets.txt`. The menu can simulate the sample
-workload, route a packet using an entered destination IP, display the topology
-and connectivity, or calculate a shortest route between routers.
+`routing_config.txt`, and `packets.txt`. Choose menu option 1 or 2 to run a
+simulation normally in the terminal. The packet results are also written to
+`simulation.json` in the repository root for the browser replay. The JSON
+contains the network and the C++ route results, plus three generated playback
+cases. Each stress demo fills a router queue, records dropped packets, and
+randomly fails a route link that has an alternate path.
+
+The interactive menu also supports queueing a packet at a router (option 6),
+executing one queued packet at a time (option 7), and breaking a direct network
+link (option 8). Execution uses the packet heap, so the highest-priority packet
+in that router's queue is forwarded first; ties use lower packet IDs. A
+forwarded packet waits in the next router's queue until that router is
+executed. Breaking a link updates the graph, rebuilds forwarding tables and
+connectivity, and affects subsequent packet executions. Choose option 9 to
+exit.
+
+To replay the run, start a local static server from the repository root and
+open `http://localhost:8000/frontend/`:
+
+```text
+python -m http.server 8000
+```
+
+The page loads `simulation.json` produced by C++. If you open the HTML directly
+or the JSON is not found, use **Upload simulation.json** in the page header to
+choose the file. Select a packet to replay its C++ result, or select any of the
+three stress demos to watch queue overflow and a randomized link failure
+trigger a Dijkstra reroute. The event history is scrollable and retains every
+queue and route event for the selected replay. The animation uses the recorded
+JSON; the browser does not recalculate the route. Cytoscape.js and the optional
+display fonts are loaded from public CDNs, so an internet connection is needed
+for those assets.

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>Packet Routing Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="header-actions">
+        <label class="upload-button" for="simulation-file">Upload simulation.json <span>↑</span></label>
+        <input id="simulation-file" class="file-input" type="file" accept=".json,application/json">
+      </div>
+    </header>
+
+    <section class="intro">
+      <div>
+        <p class="eyebrow">NETWORK VISUALIZER <span>·</span> LIVE DEMO</p>
+        <h1>See every hop.<br><span>Understand the route.</span></h1>
+        <p class="intro-copy">Explore the topology, inspect connected components, and watch a packet find its way across the network.</p>
+      </div>
+      <div class="network-stats" aria-label="Network statistics">
+        <div class="stat-card"><span class="stat-icon">⌘</span><div><strong id="router-count">—</strong><small>ROUTERS</small></div></div>
+        <div class="stat-card"><span class="stat-icon link-icon">⌁</span><div><strong id="link-count">—</strong><small>LINKS</small></div></div>
+        <div class="stat-card"><span class="stat-icon component-icon">◉</span><div><strong id="component-count">—</strong><small>COMPONENTS</small></div></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <section class="graph-panel glass-panel" aria-label="Network graph">
+        <div class="panel-heading graph-heading">
+          <div><p class="eyebrow">TOPOLOGY</p><h2>Network map</h2></div>
+          <div class="graph-tools">
+            <span class="live-label"><i></i> ROUTER GRAPH</span>
+            <button class="icon-button" id="fit-graph" type="button" title="Fit graph to view" aria-label="Fit graph to view">⛶</button>
+          </div>
+        </div>
+        <div id="cy" role="img" aria-label="Interactive graph showing routers and weighted network links"></div>
+        <div class="graph-legend">
+          <span><i class="legend-router"></i> Router</span>
+          <span><i class="legend-path"></i> Active route</span>
+          <span><i class="legend-packet"></i> Packet</span>
+          <span class="legend-hint">Drag to explore · Scroll to zoom</span>
+        </div>
+      </section>
+
+      <aside class="side-column">
+        <section class="glass-panel control-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">PACKET SIMULATION</p><h2>Send a packet</h2></div>
+            <span class="panel-icon">↗</span>
+          </div>
+          <p class="panel-description">Replay C++ packet routes or choose one of three stress demos to watch queue overflow and a live reroute.</p>
+
+          <label class="field packet-select">SAMPLE PACKET
+            <select id="sample-packet" disabled>
+              <option value="">Choose a C++ result or stress demo</option>
+            </select>
+          </label>
+
+          <div class="packet-meta">
+            <span class="meta-icon">⌁</span>
+            <div><small>DESTINATION IP</small><strong id="destination-ip">Select a sample packet</strong></div>
+            <span class="priority-pill" id="packet-priority">PRIORITY —</span>
+          </div>
+
+          <button class="primary-button" id="send-packet" type="button" disabled>
+            <span class="button-glyph">▶</span><span id="send-label">Play simulation</span><span class="button-arrow">↗</span>
+          </button>
+          <p class="form-error" id="form-error" role="alert"></p>
+        </section>
+
+        <section class="glass-panel route-panel">
+          <div class="panel-heading route-heading">
+            <div><p class="eyebrow">ROUTE INSPECTOR</p><h2>Journey details</h2></div>
+            <span class="route-state" id="route-state">READY</span>
+          </div>
+          <div class="route-summary">
+            <div><small>HOPS</small><strong id="hop-count">—</strong></div>
+            <div><small>TOTAL COST</small><strong id="route-cost">—</strong></div>
+            <div><small>STATUS</small><strong id="route-result">Waiting</strong></div>
+          </div>
+          <div class="route-track-wrap">
+            <div class="route-track" id="route-track"><span class="empty-track">Choose a packet to preview its path</span></div>
+          </div>
+          <div class="progress-wrap"><div class="progress-meta"><span>PACKET PROGRESS</span><span id="progress-text">0%</span></div><div class="progress-bar"><span id="progress-bar"></span></div></div>
+          <div class="queue-monitor">
+            <div class="queue-header"><span>ROUTER QUEUE</span><span id="queue-label">Waiting for playback</span></div>
+            <div class="queue-slots" id="queue-slots"></div>
+            <div class="event-log" id="event-log" aria-live="polite">Events from main.cpp appear here during playback.</div>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="page-footer">
+      <span>SHORTEST PATH ROUTING <i></i> WEIGHTED LINKS <i></i> CONNECTIVITY ANALYSIS</span>
+      <span class="footer-credit">Built for curious network minds <b>✳</b></span>
+    </footer>
+  </main>
+  <noscript>This network demo needs JavaScript enabled to render the interactive graph.</noscript>
+</body>
+</html>

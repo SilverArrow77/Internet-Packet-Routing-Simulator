@@ -1,0 +1,28 @@
+ g++ -std=c++11 main.cpp Dijkstra\dijkstra.cpp Member2_Trie\trie.cpp Member3_PacketHeap\packet_heap.cpp Member4_RouterQueue_DSU\router_queue.cpp Member4_RouterQueue_DSU\dsu.cpp -o simulator.exe
+
+ .\simulator.exe  
+
+Terminal menu options:
+  6 - Queue a packet at a router. Repeat this to queue multiple packets.
+      A router queue has capacity 10. The destination IP selects the
+      destination router from routing_config.txt.
+  7 - Execute one packet from a router. The packet with the highest
+      priority is selected; ties are resolved by the lower packet ID.
+      A forwarded packet waits in the next router's queue.
+  8 - Break a direct link between two routers. The simulator rebuilds
+      forwarding tables and connectivity, so queued packets use the
+      updated routes when they are next executed.
+  9 - Exit.
+
+Example priority test:
+  Queue packet 201 at R1 for 10.0.16.25 with priority 2.
+  Queue packet 202 at R1 for 10.0.16.25 with priority 8.
+  Execute R1; packet 202 is forwarded first.
+
+To demonstrate a link failure, break R3-R4 and then execute packets at
+the routers. Routes are recalculated around the failed link.
+
+After running a packet simulation, open frontend/index.html and upload
+simulation.json to replay the saved packet/stress-test animation.
+
+ 
