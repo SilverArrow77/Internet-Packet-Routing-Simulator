@@ -2,6 +2,8 @@
 #ifndef DIJKSTRA_H
 #define DIJKSTRA_H
 
+#include "../common.h"
+
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -11,12 +13,6 @@ using namespace std;
 struct Edge {
     string destination;
     int cost;
-};
-
-struct RouteResult {
-    bool reachable;
-    long long totalCost;
-    vector<string> path;
 };
 
 class NetworkGraph {

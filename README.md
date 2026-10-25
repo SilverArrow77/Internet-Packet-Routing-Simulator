@@ -359,3 +359,16 @@ Follow this order to minimize integration problems.
 
 
 One architectural caveat: a Trie is only useful here if the team actually uses destination IP prefixes for forwarding. If your assignment only requires routing between named routers, Dijkstra already supplies the next hop, and the Trie would otherwise duplicate that job. Confirm that IP-prefix forwarding is a project requirement before investing in the full integration.
+
+13. Running the interactive simulator
+
+Build the integration program from the repository root with:
+
+```text
+g++ -std=c++11 main.cpp Dijkstra/dijkstra.cpp Member2_Trie/trie.cpp Member3_PacketHeap/packet_heap.cpp Member4_RouterQueue_DSU/router_queue.cpp Member4_RouterQueue_DSU/dsu.cpp -o simulator
+```
+
+Run `simulator` from the repository root so it can read `input.txt`,
+`routing_config.txt`, and `packets.txt`. The menu can simulate the sample
+workload, route a packet using an entered destination IP, display the topology
+and connectivity, or calculate a shortest route between routers.
