@@ -28,8 +28,7 @@ bool NetworkGraph::loadFromFile(const string& filename, string& error) {
         return false;
     }
 
-    // The supplied dataset uses sequential IDs: R1, R2, ..., Rn.
-    // Create all routers so isolated routers are preserved.
+    
     for (int i = 1; i <= n; i++) {
         adj["R" + to_string(i)];
     }
