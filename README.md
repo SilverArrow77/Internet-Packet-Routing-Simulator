@@ -1,403 +1,200 @@
-Network Packet Routing Simulator — Project Blueprint
-
-This blueprint defines the shared data structures, module interfaces, function contracts, and runtime flow for all four team members. The goal is to let everyone implement their module independently and then integrate them without incompatible function signatures or duplicated responsibilities.
-
-1. Final architecture
-
-The simulator models a network of routers, routes packets through the network, schedules packets by priority, and handles router buffers and connectivity analysis.
-
-Input and initialization
-
-input.txt defines routers, links, and link costs. Packet input defines the traffic to simulate.
-
-Member 1 — Graph + Dijkstra
-
-Calculates shortest paths and next hops between routers.
-
-Integration layer — Build forwarding tables
-
-Maps destination networks to routers and inserts Dijkstra-derived next hops into the appropriate Tries.
-
-Member 2 — Trie
-
-Looks up the destination IP at the current router and returns the next hop.
-
-Members 3 and 4 — Scheduling and buffering
-
-Member 3 selects packets by priority. Member 4 manages router queues and connectivity analysis.
-
-Output: delivered packets, routes, costs, and failure reports
-
-The main program coordinates these components. Each member owns their implementation files and exposes only the agreed public functions.
-
-2. Shared files and project structure
-
-Use one shared directory:
-
-input.txt: network topology, shared by the graph module and connectivity analysis.
-
-packets.txt: packet workload, read by the main program.
-
-routing_config.txt: destination IP networks and their corresponding destination routers.
-
-common.h: shared structures used by multiple modules.
-
-main.cpp: initializes components and coordinates the simulation.
-
-
-3. Shared data structures — common.h
-
-All members must agree on these structures first.
-
-What each field means
-
-Structure	Important fields	Purpose
-
-Packet	id, sourceRouter, destinationRouter, destinationIP, currentRouter, priority	Identifies the packet, its destination, its current location, and scheduling priority
-RouteResult	reachable, totalCost, path	Result returned by Dijkstra
-RoutingEntry	prefix, prefixLength, nextHop	One forwarding rule stored in a router's Trie
-PacketResult	delivered, routeTaken, totalRouteCost, message	Final outcome of simulating a packet
-
-
-The destinationRouter field is used by the simulator to know which router represents the intended destination. The destinationIP is used for Trie lookup. The routing configuration must map the IP prefix to the destination router.
-
-For example, 10.0.16.0/24 could represent the network behind R16. This is a project-defined mapping, not information already present in your topology file.
-
-4. Member 1 — Graph and Dijkstra
-
-Files: dijkstra.h, dijkstra.cpp
-
-Your module is the source of shortest-path information. It must not depend on the Trie, packet heap, or router queue.
-
-Public interface
-
-Your existing methods can remain. Add getNextHop() as a convenience method.
-
-getNextHop() should return the second router in the shortest path, or an empty string if the destination is unreachable or the source and destination are the same.
-
-Function contract
-
-Function	Input	Expected output
-
-loadFromFile()	"input.txt", error string	true on success; false with an error message otherwise
-shortestPath()	"R1", "R16"	RouteResult containing the path and total cost
-getNextHop()	"R1", "R16"	"R3" for the current topology
-hasRouter()	"R16"	true
-routerCount()	None	25 for the supplied topology
-
-
-Who calls your functions?
-
-main.cpp calls loadFromFile() once during initialization.
-
-The forwarding-table initialization code calls shortestPath() for each source/destination pair it needs to configure.
-
-Other modules may call hasRouter() if they need to validate a router ID.
-
-
-Example
-
-Expected result:
-
-That path is used to construct forwarding entries. Member 2 does not call Dijkstra internally; the integration code obtains routes from your module and inserts the corresponding entries into the Tries.
-
-5. Member 2 — Trie and forwarding table
-
-Files: trie.h, trie.cpp
-
-Member 2 owns the prefix-matching algorithm. The Trie should store forwarding entries, not calculate network costs.
-
-Public interface
-
-Each router gets its own Trie. The integration layer can maintain them in a map:
-
-For example, routingTables["R1"] represents R1's forwarding table.
-
-Function contract
-
-Function	Input	Expected output
-
-insert()	"10.0.16.0", 24, "R3"	Stores the prefix with next hop R3
-longestPrefixMatch()	"10.0.16.25"	"R3" if that is the best matching entry
-longestPrefixMatch()	An unmatched IP	Empty string
-
-
-The implementation must parse IPv4 addresses into bits, follow the Trie branches, and remember the most recent matching prefix. That last matching node is the longest-prefix match.
-
-Who calls the Trie?
-
-The initialization code inserts routing entries into each router's Trie.
-
-The main packet-forwarding loop calls longestPrefixMatch() whenever a packet needs forwarding from its current router.
-
-
-How are the entries generated?
-
-For every source router S and destination router D:
-
-1. Look up D's configured destination IP prefix.
-
-
-2. Call graph.shortestPath(S, D).
-
-
-3. If the route is reachable and has more than one router, take path[1] as the next hop.
-
-
-4. Insert D's prefix and that next hop into routingTables[S].
-
-
-
-Example:
-
-For this example, R1's Trie stores the prefix 10.0.16.0/24 with next hop R3.
-
-The same prefix is inserted into R3's Trie with next hop R4, R4's with R8, and so on.
-
-Important: the prefix-to-destination-router mapping must be supplied by routing_config.txt or another shared configuration. It cannot be inferred from input.txt alone.
-
-6. Member 3 — Binary heap and packet scheduler
-
-Files: packet_heap.h, packet_heap.cpp
-
-Member 3 implements a max-priority heap of packets. A larger priority number means a packet is processed sooner. Ties are resolved by lower packet ID.
-
-Public interface
-
-Function contract
-
-Function	Input	Expected output
-
-push()	A Packet	Inserts it into the heap
-top()	None	Returns the highest-priority packet without removing it
-pop()	None	Returns and removes the highest-priority packet
-empty()	None	true if no packets remain
-size()	None	Number of packets in the heap
-
-
-pop() and top() must only be called when the heap is not empty.
-
-Who calls the heap?
-
-The main program transfers packets waiting in a router's buffer into that router's scheduler heap. It then pops the highest-priority packet and forwards it. A packet should be held in only one active queue or heap at a time.
-
-This makes Member 3 responsible for which waiting packet is processed first, not which network route it takes.
-
-7. Member 4 — Router queues and DSU
-
-Files: router_queue.h, router_queue.cpp, dsu.h, dsu.cpp
-
-Member 4 has two independent responsibilities: buffering packets at routers and analyzing network connectivity.
-
-Router queue interface
-
-Function	Input	Expected output
-
-enqueue()	Packet	true if added, false if full
-dequeue()	Output Packet&	true if removed, false if empty
-isEmpty()	None	Whether queue is empty
-isFull()	None	Whether queue has reached capacity
-size()	None	Current number of queued packets
-
-
-Maintain one queue per router, for example:
-
-Since RouterQueue needs a capacity when constructed, the team should initialize each router's queue explicitly rather than relying on default construction.
-
-DSU interface
-
-DSU uses integer IDs, so the integration layer must consistently map router names to integers. For example, R1 maps to 0, R2 to 1, and so on.
-
-DSU is initialized using the network links. It can answer whether two routers are connected. After a link failure, rebuild it from the surviving links if arbitrary deletions are supported.
-
-
----
-
-8. Main program — who calls whom?
-
-Only main.cpp contains the program's main() function. It owns the integration logic and calls the modules through their public interfaces.
-
-Here is the exact responsibility matrix:
-
-Operation	Caller	Function called	Result used by
-
-Load topology	main.cpp	graph.loadFromFile()	Member 1 / integration
-Calculate route	Integration layer	graph.shortestPath()	Forwarding-table builder
-Build forwarding table	Integration layer	trie.insert()	Member 2's Tries
-Create packet	main.cpp	—	Source router queue
-Buffer packet	main.cpp	routerQueues[id].enqueue()	Member 4
-Schedule packet	main.cpp	heap.push(), heap.pop()	Member 3
-Look up next hop	main.cpp	trie.longestPrefixMatch()	Forwarding logic
-Check connectivity	main.cpp	dsu.connected()	Failure reporting
-
-
-The forwarding-table builder is integration code in main.cpp or a separate helper module. It is not an additional responsibility that should be hidden inside Member 2's Trie implementation.
-
-9. Complete runtime example
-
-Suppose the program receives packet P101:
-
-The destination IP belongs to the configured destination network 10.0.16.0/24.
-
-1
-
-Initialization
-
-main.cpp loads input.txt. Your Dijkstra module calculates the shortest paths. The integration layer builds forwarding entries in each router's Trie.
-
-
----
-
-2
-
-Packet enters R1
-
-Member 4's circular queue stores P101. The main program transfers it to the scheduling heap when R1 is ready to process packets.
-
-
----
-
-3
-
-Select and forward
-
-Member 3's heap selects P101. The main program queries R1's Trie with 10.0.16.25. The Trie returns R3, so the packet is placed in R3's queue.
-
-
----
-
-4
-
-Repeat at each router
-
-The packet is processed at R3, R4, R8, and R12. Each router's Trie returns the next hop configured from the shortest route.
-
-
----
-
-5
-
-Delivery
-
-At R16, the main program recognizes that the destination router has been reached and marks P101 as delivered. It records the route and total cost.
-
-The expected route for P101 is:
-
-R1 → R3 → R4 → R8 → R12 → R16
-
-Total cost: 16.
-
-This is a deterministic example using the current topology. The priority heap determines the processing order of competing packets; it does not change Dijkstra's route.
-
-10. Input file formats
-
-input.txt — already implemented by you
-
-The first line gives the number of routers and links. Each subsequent line contains a bidirectional link and its cost.
-
-routing_config.txt — destination IP mapping
-
-Use one line per destination network:
-
-This format means destinationRouter networkAddress prefixLength. The configuration must define all destination networks used by the simulator. Each router's forwarding table is generated from the shortest paths to these destinations.
-
-packets.txt — sample packet workload
-
-Format:
-
-The main program reads each line and creates a Packet. Member 3's heap uses the priority, and Member 2's Trie uses the destination IP.
-
-11. Required test cases
-
-Before integration, each member should verify their module independently.
-
-Member	Minimum tests
-
-Member 1	Known shortest path, unreachable destination, unknown router, malformed topology
-Member 2	Exact prefix match, overlapping prefixes, longest-prefix selection, no matching prefix
-Member 3	Correct priority order, equal-priority tie-breaking, empty heap
-Member 4	Queue full/empty cases, circular wraparound, DSU connectivity, connectivity after a simulated failure
-
-
-Then the integrated program should test:
-
-A packet delivered successfully.
-
-A destination unreachable from its source.
-
-A packet dropped because a router queue is full.
-
-Multiple packets with different priorities.
-
-A link failure followed by route recomputation and forwarding-table updates.
-
-
-12. Implementation order for your team
-
-Follow this order to minimize integration problems.
-
-1. You: finalize dijkstra.h, dijkstra.cpp, and getNextHop().
-
-
-2. All members: agree on common.h and commit it to the shared repository.
-
-
-3. Member 2: implement the Trie and test longest-prefix matching independently.
-
-
-4. Member 3: implement the heap using the shared Packet structure.
-
-
-5. Member 4: implement the circular queue and DSU independently.
-
-
-6. Integration: build the forwarding-table initialization logic, then implement the main packet-processing loop.
-
-
-7. Testing: run the complete simulation with input.txt, routing_config.txt, and packets.txt.
-
-
-
-One architectural caveat: a Trie is only useful here if the team actually uses destination IP prefixes for forwarding. If your assignment only requires routing between named routers, Dijkstra already supplies the next hop, and the Trie would otherwise duplicate that job. Confirm that IP-prefix forwarding is a project requirement before investing in the full integration.
-
-13. Running the interactive simulator
-
-Build the integration program from the repository root with:
-
-```text
+# Internet Packet Routing Simulator
+
+A C++ network simulator that routes IPv4 packets across a weighted router
+topology. It combines shortest-path routing, IP-prefix forwarding, bounded
+router queues, priority-based packet scheduling, and connectivity analysis.
+An optional browser interface replays simulation results on an interactive
+network graph.
+
+## Features
+
+- **Weighted network topology:** Load routers and bidirectional links from a
+  text file.
+- **Shortest paths:** Use Dijkstra's algorithm to find routes and calculate
+  their total cost.
+- **IPv4 forwarding:** Build per-router forwarding tables and select next hops
+  with longest-prefix matching.
+- **Packet queues and scheduling:** Buffer up to 10 packets per router and
+  process higher-priority packets first; ties go to the lower packet ID.
+- **Connectivity and link failures:** Inspect connected components, take a
+  direct link offline, and rebuild routes for the updated network.
+- **Browser replay:** Explore packet paths, queue events, and reroute stress
+  demonstrations in the frontend.
+
+## Requirements
+
+- A C++ compiler with C++11 support (for example, `g++`)
+- Python 3, if you want to serve the browser frontend locally
+- An internet connection for the frontend's Cytoscape.js and web-font CDN
+  assets
+
+## Build and run
+
+Run these commands from the repository root so the simulator can find its
+input files:
+
+```sh
 g++ -std=c++11 main.cpp Dijkstra/dijkstra.cpp Member2_Trie/trie.cpp Member3_PacketHeap/packet_heap.cpp Member4_RouterQueue_DSU/router_queue.cpp Member4_RouterQueue_DSU/dsu.cpp -o simulator
 ```
 
-Run `simulator` from the repository root so it can read `input.txt`,
-`routing_config.txt`, and `packets.txt`. Choose menu option 1 or 2 to run a
-simulation normally in the terminal. The packet results are also written to
-`simulation.json` in the repository root for the browser replay. The JSON
-contains the network and the C++ route results, plus three generated playback
-cases. Each stress demo fills a router queue, records dropped packets, and
-randomly fails a route link that has an alternate path.
+Start the interactive simulator:
 
-The interactive menu also supports queueing a packet at a router (option 6),
-executing one queued packet at a time (option 7), and breaking a direct network
-link (option 8). Execution uses the packet heap, so the highest-priority packet
-in that router's queue is forwarded first; ties use lower packet IDs. A
-forwarded packet waits in the next router's queue until that router is
-executed. Breaking a link updates the graph, rebuilds forwarding tables and
-connectivity, and affects subsequent packet executions. Choose option 9 to
-exit.
+```sh
+./simulator
+```
 
-To replay the run, start a local static server from the repository root and
-open `http://localhost:8000/frontend/`:
+On Windows, run the generated executable in PowerShell:
 
-```text
+```powershell
+.\simulator.exe
+```
+
+The program loads `input.txt` and `routing_config.txt` at startup. Choose a
+menu option to run a batch, enter a packet, inspect the network, or manage
+packets and links interactively.
+
+### Menu options
+
+| Option | Action |
+| --- | --- |
+| 1 | Load `packets.txt`, simulate the packet workload, print results, and save `simulation.json` for browser replay. |
+| 2 | Send one packet immediately using a source router and destination IPv4 address; save its result for browser replay. |
+| 3 | Display the network topology and link costs. |
+| 4 | Display router connectivity components. |
+| 5 | Find and display a shortest route between two routers. |
+| 6 | Queue a packet at a router. The destination router is resolved from its destination IP. |
+| 7 | Execute the highest-priority queued packet at a router and forward it one hop. |
+| 8 | Break a direct link between two routers, then rebuild forwarding tables and connectivity. |
+| 9 | Exit. |
+
+For options 6 and 7, a forwarded packet waits in the next router's queue until
+that router is executed. Each router queue has a capacity of 10 packets.
+
+## Browser visualization
+
+Options 1 and 2 write `simulation.json` in the repository root. To view the
+saved results, start a local static server from that directory:
+
+```sh
 python -m http.server 8000
 ```
 
-The page loads `simulation.json` produced by C++. If you open the HTML directly
-or the JSON is not found, use **Upload simulation.json** in the page header to
-choose the file. Select a packet to replay its C++ result, or select any of the
-three stress demos to watch queue overflow and a randomized link failure
-trigger a Dijkstra reroute. The event history is scrollable and retains every
-queue and route event for the selected replay. The animation uses the recorded
-JSON; the browser does not recalculate the route. Cytoscape.js and the optional
-display fonts are loaded from public CDNs, so an internet connection is needed
-for those assets.
+Open [http://localhost:8000/frontend/](http://localhost:8000/frontend/) in a
+browser. Choose a packet result or one of the three generated stress demos,
+then select **Play simulation**. The demos illustrate queue overflow and
+rerouting after a link failure. The browser animates the data recorded by the
+C++ program; it does not calculate routes itself.
+
+If the page cannot load `simulation.json`, use **Upload simulation.json** in
+the page header to select it manually. The visualization uses Cytoscape.js and
+web fonts from public CDNs.
+
+## Input files
+
+All input files are plain text. Keep them in the repository root, and run the
+simulator from that directory.
+
+### `input.txt` — network topology
+
+The first line contains the router count and link count. Each remaining line
+defines an undirected link and its positive cost:
+
+```text
+25 40
+R1 R2 4
+R1 R3 2
+R1 R4 7
+```
+
+Router IDs in the link list must be among `R1` through `R<router-count>`.
+Routers without links are still part of the network.
+
+### `routing_config.txt` — destination networks
+
+Each line maps a router to an IPv4 network and prefix length:
+
+```text
+R1 10.0.1.0 24
+R2 10.0.2.0 24
+R3 10.0.3.0 24
+```
+
+The simulator uses these entries to map destination IP addresses to routers and
+to build longest-prefix forwarding tables.
+
+### `packets.txt` — batch workload
+
+Each line contains a packet ID, source router, destination router, destination
+IPv4 address, and priority:
+
+```text
+101 R1 R16 10.0.16.25 3
+102 R2 R12 10.0.12.10 5
+```
+
+The destination IP must match a network configured for the specified
+destination router. Packet IDs in a workload must be unique.
+
+## How routing works
+
+1. The graph module loads the weighted topology and calculates shortest paths
+   using Dijkstra's algorithm.
+2. The simulator combines those paths with `routing_config.txt` to build a
+   forwarding trie for each router.
+3. At each hop, the current router's trie finds the most specific prefix that
+   matches the packet's destination IP and returns its next hop.
+4. The packet enters the next router's bounded queue. During simulation, a
+   max-priority heap chooses which waiting packet is processed first.
+5. Delivery, route cost, final router, and any drop reason are reported for
+   each packet.
+
+The priority affects processing order, not the route selected. Removing a
+link updates the graph; forwarding tables and connectivity are then rebuilt
+from the surviving links.
+
+## Project structure
+
+```text
+.
+├── main.cpp                         # Program entry point and integration
+├── common.h                         # Shared packet and route data structures
+├── input.txt                        # Sample weighted topology
+├── packets.txt                      # Sample packet workload
+├── routing_config.txt               # Sample router-to-network mapping
+├── simulation.json                  # Browser replay data (generated by the app)
+├── Dijkstra/
+│   ├── dijkstra.h
+│   ├── dijkstra.cpp                 # Graph and shortest-path algorithm
+│   └── test_dijkstra.cpp            # Standalone graph tests
+├── Member2_Trie/
+│   ├── trie.h
+│   └── trie.cpp                     # IPv4 longest-prefix lookup
+├── Member3_PacketHeap/
+│   ├── packet_heap.h
+│   └── packet_heap.cpp              # Packet priority scheduler
+├── Member4_RouterQueue_DSU/
+│   ├── router_queue.h
+│   ├── router_queue.cpp              # Bounded circular router queue
+│   ├── dsu.h
+│   ├── dsu.cpp                       # Disjoint-set connectivity tracking
+│   └── test_member4.cpp             # Router queue and DSU tests
+└── frontend/
+    ├── index.html
+    ├── app.js
+    └── styles.css                    # Browser-based simulation replay
+```
+
+## Tests
+
+The repository includes a standalone Dijkstra test program. Build and run it
+from the repository root:
+
+```sh
+g++ -std=c++11 Dijkstra/test_dijkstra.cpp Dijkstra/dijkstra.cpp -o dijkstra_tests
+./dijkstra_tests input.txt
+```
+
+On Windows, run `.\dijkstra_tests.exe input.txt`. The test checks topology
+loading, a known shortest-path cost, unreachable and unknown routers, and
+malformed topology input. A separate Member 4 test source is also included.
+There is currently no unified test runner.
